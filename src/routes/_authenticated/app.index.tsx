@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, Gauge, LineChart, ArrowUpRight } from "lucide-react";
 import { TodayPanel } from "@/components/app/TodayPanel";
+import { AiLeadSearchEngine } from "@/components/leads/AiLeadSearchEngine";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({ meta: [{ title: "Dashboard — LeadVine" }] }),
@@ -41,11 +42,15 @@ function Dashboard() {
   });
 
   return (
-    <div>
-      <div className="mb-10">
-        <div className="text-xs uppercase tracking-widest text-vine mb-2">Overview</div>
-        <h1 className="font-display text-4xl">Dashboard</h1>
+    <div className="space-y-8">
+      <div className="mb-6">
+        <div className="text-xs uppercase tracking-widest text-vine mb-1 font-semibold">
+          AI Prospecting Hub
+        </div>
+        <h1 className="font-display text-3xl md:text-4xl">Dashboard</h1>
       </div>
+
+      <AiLeadSearchEngine />
 
       <TodayPanel />
 

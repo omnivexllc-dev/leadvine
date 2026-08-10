@@ -313,3 +313,47 @@ export interface WhiteLabelConfig {
   proposalFooterText: string;
   hideLeadVineBranding: boolean;
 }
+
+export interface AiSearchPlan {
+  id: string;
+  userPrompt: string;
+  targetIndustry: string;
+  location: {
+    city?: string;
+    state?: string;
+    country?: string;
+    radiusMiles?: number;
+    textDisplay: string;
+  };
+  idealCustomerProfile: string;
+  targetCharacteristics: string[];
+  prospectNeed: string;
+  primaryOpportunity: string;
+  secondaryOpportunity: string;
+  estimatedResults: number;
+  estimatedValuePerLead: { min: number; max: number };
+  minLeadScore: number;
+  websiteScoreFilter: number;
+  onlyMissingWebsites: boolean;
+  configuredSources: string[];
+  scoringWeights: {
+    websiteQuality: number;
+    businessReputation: number;
+    contactAvailability: number;
+    marketFit: number;
+  };
+  created_at: string;
+}
+
+export interface SinglePromptLeadCampaign {
+  id: string;
+  title: string;
+  searchPlan: AiSearchPlan;
+  leadsDiscoveredCount: number;
+  verifiedCount: number;
+  highOpportunityCount: number;
+  hotLeadsCount: number;
+  totalPipelineValue: number;
+  leads: UnifiedLeadIntelligenceReport[];
+  created_at: string;
+}
