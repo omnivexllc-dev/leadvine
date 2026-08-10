@@ -45,6 +45,7 @@ Return the updated filters matching the schema.`;
         model: getAiModel(),
         system: SYSTEM,
         prompt,
+        maxRetries: 0,
         output: Output.object({ schema: outputSchema }),
       });
       return outputSchema.parse(output);

@@ -40,6 +40,11 @@ import {
   saveAiCampaign,
   ExecutionSummary,
 } from "@/services/aiLeadSearch.service";
+import {
+  parseSearchPlanWithAi,
+  executeAiSearchOrchestrator,
+} from "@/lib/leadvine/orchestrator.functions";
+import { refineFilters } from "@/lib/leadvine/refine.functions";
 import { LeadIntelligenceReportModal } from "./LeadIntelligenceReportModal";
 import { PIPELINE_STAGES } from "@/services/leadIntelligence.service";
 
@@ -88,67 +93,105 @@ export function AiLeadSearchEngine({
     setSavedCampaigns(getAiCampaigns());
   }, []);
 
-  const handleGeneratePlan = (promptText?: string, autoRun = true) => {
+  const runOrchestratorExecution = async (planToExecute: AiSearchPlan) => {
+    setPhase("executing");
+    setExecutionStep(0);
+
+    let step = 0;
+    const interval = setInterval(() => {
+      step = Math.min(step + 1, 4);
+      setExecutionStep(step);
+    }, 500);
+
+    try {
+      const res = await executeAiSearchOrchestrator({ data: { plan: planToExecute } });
+      clearInterval(interval);
+      setExecutionStep(5);
+      setDiscoveredLeads(res.newLeads);
+      setExecutionSummary(res.summary);
+      saveAiCampaign(res.campaign);
+      setSavedCampaigns(getAiCampaigns());
+      setPhase("results");
+    } catch (err) {
+      console.warn("[AiLeadSearchEngine] Orchestrator execution fallback:", err);
+      clearInterval(interval);
+      const { campaign, newLeads, summary } = executeAiSearch(planToExecute);
+      setExecutionStep(5);
+      setDiscoveredLeads(newLeads);
+      setExecutionSummary(summary);
+      saveAiCampaign(campaign);
+      setSavedCampaigns(getAiCampaigns());
+      setPhase("results");
+    }
+  };
+
+  const handleGeneratePlan = async (promptText?: string, autoRun = true) => {
     const textToUse = promptText || prompt;
     if (!textToUse.trim()) return;
     setPrompt(textToUse);
     setPhase("planning");
 
-    setTimeout(() => {
-      const plan = parseUserPromptToPlan(textToUse);
-      setActivePlan(plan);
+    let generatedPlan: AiSearchPlan;
+    try {
+      generatedPlan = await parseSearchPlanWithAi({ data: { prompt: textToUse } });
+    } catch (err) {
+      console.warn("[AiLeadSearchEngine] AI plan parse fallback:", err);
+      generatedPlan = parseUserPromptToPlan(textToUse);
+    }
 
-      if (autoRun) {
-        setPhase("executing");
-        setExecutionStep(0);
+    setActivePlan(generatedPlan);
 
-        let step = 0;
-        const interval = setInterval(() => {
-          step += 1;
-          setExecutionStep(step);
-          if (step >= 5) {
-            clearInterval(interval);
-            const { newLeads, summary } = executeAiSearch(plan);
-            setDiscoveredLeads(newLeads);
-            setExecutionSummary(summary);
-            setSavedCampaigns(getAiCampaigns());
-            setPhase("results");
-          }
-        }, 400);
-      } else {
-        setPhase("preview");
-      }
-    }, 500);
+    if (autoRun) {
+      await runOrchestratorExecution(generatedPlan);
+    } else {
+      setPhase("preview");
+    }
   };
 
-  const handleRefinePlan = (e: React.FormEvent) => {
+  const handleRefinePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activePlan || !refinementInput.trim()) return;
-    const refined = refinePlanWithNaturalLanguage(activePlan, refinementInput);
-    setActivePlan(refined);
-    setRefinementInput("");
+
+    try {
+      const res = await refineFilters({
+        data: {
+          current: {
+            query: activePlan.targetIndustry,
+            location: activePlan.location.textDisplay,
+            onlyMissing: activePlan.onlyMissingWebsites,
+          },
+          instruction: refinementInput,
+        },
+      });
+
+      const updatedPlan: AiSearchPlan = {
+        ...activePlan,
+        id: `plan-${Date.now()}`,
+        targetIndustry: res.query || activePlan.targetIndustry,
+        location: {
+          ...activePlan.location,
+          textDisplay: res.location || activePlan.location.textDisplay,
+        },
+        onlyMissingWebsites: res.onlyMissing ?? activePlan.onlyMissingWebsites,
+        websiteScoreFilter: res.onlyMissing ? 0 : 70,
+        primaryOpportunity: res.onlyMissing
+          ? "New Website Development"
+          : activePlan.primaryOpportunity,
+      };
+
+      setActivePlan(updatedPlan);
+      setRefinementInput("");
+    } catch (err) {
+      console.warn("[AiLeadSearchEngine] Plan refinement fallback:", err);
+      const refined = refinePlanWithNaturalLanguage(activePlan, refinementInput);
+      setActivePlan(refined);
+      setRefinementInput("");
+    }
   };
 
-  const handleStartSearch = () => {
+  const handleStartSearch = async () => {
     if (!activePlan) return;
-    setPhase("executing");
-    setExecutionStep(0);
-
-    // Simulate multi-stage orchestration steps
-    const interval = setInterval(() => {
-      setExecutionStep((prev) => {
-        if (prev >= 5) {
-          clearInterval(interval);
-          const { campaign, newLeads, summary } = executeAiSearch(activePlan);
-          setDiscoveredLeads(newLeads);
-          setExecutionSummary(summary);
-          setSavedCampaigns(getAiCampaigns());
-          setPhase("results");
-          return 5;
-        }
-        return prev + 1;
-      });
-    }, 500);
+    await runOrchestratorExecution(activePlan);
   };
 
   const handleSaveCampaign = () => {
@@ -512,18 +555,18 @@ export function AiLeadSearchEngine({
               Executing AI Lead Discovery Engine
             </h3>
             <p className="text-xs text-muted-foreground">
-              Orchestrating 9-Stage Pipeline across Google Places, Domain Registries, Site Audits, &
-              Decision Maker Discovery...
+              Orchestrating 5-Stage Discovery Pipeline across Google Places API, Business Index, Web
+              Audits & AI Opportunity Analysis...
             </p>
           </div>
 
           {/* Progress Steps */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-w-4xl mx-auto text-left">
             {[
-              "1. Multi-Source Discovery",
-              "2. Contact Verification",
-              "3. Decision-Maker Enrichment",
-              "4. 8-Dimension Web Audit",
+              "1. AI Strategy Analysis",
+              "2. Google Places Search",
+              "3. Contact & Phone Check",
+              "4. Web & SEO Audit",
               "5. Opportunity Scoring",
             ].map((stepName, i) => {
               const isDone = executionStep > i;

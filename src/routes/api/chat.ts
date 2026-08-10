@@ -133,6 +133,7 @@ export const Route = createFileRoute("/api/chat")({
               model,
               system: SYSTEM_PROMPT,
               messages: await convertToModelMessages(messages),
+              maxRetries: 0,
               stopWhen: stepCountIs(4),
               tools: {
                 propose_lead_filters: tool({

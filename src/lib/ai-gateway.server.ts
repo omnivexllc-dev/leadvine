@@ -1,7 +1,7 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
-export function getAiModel(modelName = "gemini-2.0-flash") {
+export function getAiModel(modelName = "gemini-2.5-flash") {
   const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (geminiKey) {
     const google = createGoogleGenerativeAI({ apiKey: geminiKey });
