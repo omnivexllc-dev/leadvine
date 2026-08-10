@@ -73,7 +73,7 @@ export function parseUserPromptToPlan(prompt: string, locationOverride?: string)
     }
   }
 
-  // Infer Location
+  // Infer Location dynamically
   let city = "";
   let state = "";
   const country = "United States";
@@ -89,40 +89,94 @@ export function parseUserPromptToPlan(prompt: string, locationOverride?: string)
       state = parts[0];
     }
   } else {
-    // Check state keywords
-    if (lower.includes("florida") || lower.includes(" fl")) {
-      state = "Florida";
-      textDisplay = "Florida, USA";
-    } else if (lower.includes("texas") || lower.includes(" tx")) {
-      state = "Texas";
-      textDisplay = "Texas, USA";
-    } else if (lower.includes("ohio") || lower.includes(" oh")) {
-      state = "Ohio";
-      textDisplay = "Ohio, USA";
-    } else if (lower.includes("california") || lower.includes(" ca")) {
-      state = "California";
-      textDisplay = "California, USA";
-    } else if (lower.includes("new york") || lower.includes(" ny")) {
-      state = "New York";
-      textDisplay = "New York, USA";
-    } else if (lower.includes("miami")) {
-      city = "Miami";
-      state = "Florida";
-      textDisplay = "Miami, FL";
-    } else if (lower.includes("austin")) {
-      city = "Austin";
-      state = "Texas";
-      textDisplay = "Austin, TX";
-    } else if (lower.includes("tampa")) {
-      city = "Tampa";
-      state = "Florida";
-      textDisplay = "Tampa, FL";
-    } else if (lower.includes("dallas")) {
-      city = "Dallas";
-      state = "Texas";
-      textDisplay = "Dallas, TX";
+    // Dynamic extraction for "in <City>, <State>" or "in <City>"
+    const inMatch = p.match(/(?:in|near|around|at)\s+([A-Za-z\s]+?)(?:,\s*([A-Za-z\s]+))?$/i);
+    if (inMatch && inMatch[1]) {
+      const loc1 = inMatch[1].trim();
+      const loc2 = inMatch[2] ? inMatch[2].trim() : "";
+      if (loc2) {
+        city = loc1;
+        state = loc2;
+        textDisplay = `${city}, ${state}`;
+      } else {
+        city = loc1;
+        textDisplay = `${city}, USA`;
+      }
     } else {
-      textDisplay = "National (USA)";
+      // Common state & city fallback rules
+      const US_STATES: Record<string, string> = {
+        florida: "Florida",
+        fl: "Florida",
+        texas: "Texas",
+        tx: "Texas",
+        california: "California",
+        ca: "California",
+        "new york": "New York",
+        ny: "New York",
+        ohio: "Ohio",
+        oh: "Ohio",
+        illinois: "Illinois",
+        il: "Illinois",
+        georgia: "Georgia",
+        ga: "Georgia",
+        washington: "Washington",
+        wa: "Washington",
+        colorado: "Colorado",
+        co: "Colorado",
+        arizona: "Arizona",
+        az: "Arizona",
+        "north carolina": "North Carolina",
+        nc: "North Carolina",
+        pennsylvania: "Pennsylvania",
+        pa: "Pennsylvania",
+        michigan: "Michigan",
+        mi: "Michigan",
+        tennessee: "Tennessee",
+        tn: "Tennessee",
+      };
+
+      let foundState = "";
+      for (const [key, val] of Object.entries(US_STATES)) {
+        if (lower.includes(key)) {
+          foundState = val;
+          break;
+        }
+      }
+
+      if (foundState) {
+        state = foundState;
+        textDisplay = `${state}, USA`;
+      } else if (lower.includes("miami")) {
+        city = "Miami";
+        state = "Florida";
+        textDisplay = "Miami, FL";
+      } else if (lower.includes("austin")) {
+        city = "Austin";
+        state = "Texas";
+        textDisplay = "Austin, TX";
+      } else if (lower.includes("chicago")) {
+        city = "Chicago";
+        state = "Illinois";
+        textDisplay = "Chicago, IL";
+      } else if (lower.includes("dallas")) {
+        city = "Dallas";
+        state = "Texas";
+        textDisplay = "Dallas, TX";
+      } else if (lower.includes("denver")) {
+        city = "Denver";
+        state = "Colorado";
+        textDisplay = "Denver, CO";
+      } else if (lower.includes("seattle")) {
+        city = "Seattle";
+        state = "Washington";
+        textDisplay = "Seattle, WA";
+      } else if (lower.includes("atlanta")) {
+        city = "Atlanta";
+        state = "Georgia";
+        textDisplay = "Atlanta, GA";
+      } else {
+        textDisplay = "National (USA)";
+      }
     }
   }
 

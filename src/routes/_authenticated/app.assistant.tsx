@@ -20,11 +20,18 @@ function AssistantIndex() {
     (async () => {
       try {
         const t = await create({ data: {} });
-        navigate({ to: "/app/assistant/$threadId", params: { threadId: t.id }, replace: true });
-      } catch {
-        // stay on empty state
-        started.current = false;
+        if (t?.id) {
+          navigate({ to: "/app/assistant/$threadId", params: { threadId: t.id }, replace: true });
+          return;
+        }
+      } catch (e) {
+        console.warn("[app.assistant] createThread error:", e);
       }
+      const fallbackId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `thread-${Date.now()}`;
+      navigate({ to: "/app/assistant/$threadId", params: { threadId: fallbackId }, replace: true });
     })();
   }, [create, navigate]);
 

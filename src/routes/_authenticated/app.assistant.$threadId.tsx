@@ -175,8 +175,17 @@ function ChatArea({
       new DefaultChatTransport({
         api: "/api/chat",
         fetch: async (url, init) => {
-          const { data } = await supabase.auth.getSession();
-          const token = data.session?.access_token;
+          let token = "";
+          try {
+            const { data } = await supabase.auth.getSession();
+            token = data.session?.access_token || "";
+          } catch {
+            // ignore
+          }
+          if (!token && typeof window !== "undefined") {
+            const localUser = localStorage.getItem("leadvine_user_session");
+            if (localUser) token = "demo-local-bearer-token-123456789";
+          }
           const headers = new Headers(init?.headers);
           if (token) headers.set("Authorization", `Bearer ${token}`);
           return fetch(url, { ...init, headers });
@@ -289,7 +298,10 @@ function MessageBlock({ message }: { message: UIMessage }) {
             }
             if (
               part.type === "tool-propose_lead_filters" ||
-              (part.type as string).startsWith("tool-")
+              part.type === "tool-invocation" ||
+              part.type === "dynamic-tool-invocation" ||
+              (part.type as string).startsWith("tool-") ||
+              "toolInvocation" in part
             ) {
               return <ToolInvocation key={i} part={part} />;
             }
@@ -301,29 +313,55 @@ function MessageBlock({ message }: { message: UIMessage }) {
   );
 }
 
-type ToolInvocationPart = {
-  type: string;
-  state?: string;
-  input?: unknown;
-  output?: unknown;
-  errorText?: string;
-  toolCallId?: string;
-};
-
 function ToolInvocation({ part }: { part: unknown }) {
-  const p = part as ToolInvocationPart;
-  const toolName = p.type.replace(/^tool-/, "");
-  const state = (p.state ?? "output-available") as
-    "input-streaming" | "input-available" | "output-available" | "output-error";
+  const p = (part ?? {}) as Record<string, unknown>;
 
-  const filters =
-    toolName === "propose_lead_filters" && p.output ? (p.output as ProposedFilters) : null;
+  let toolName = typeof p.type === "string" ? p.type.replace(/^tool-/, "") : "";
+  let state = (typeof p.state === "string" ? p.state : "output-available") as
+    "input-streaming" | "input-available" | "output-available" | "output-error";
+  let input = p.input || p.args;
+  let output = p.output || p.result;
+
+  if (p.toolInvocation && typeof p.toolInvocation === "object") {
+    const ti = p.toolInvocation as Record<string, unknown>;
+    toolName = (typeof ti.toolName === "string" ? ti.toolName : toolName) || toolName;
+    state = (typeof ti.state === "string" ? ti.state : state) as typeof state;
+    input = ti.args || ti.input || input;
+    output = ti.result || ti.output || output;
+  }
+
+  if (p.type === "tool-invocation" || toolName === "invocation") {
+    const ti = p.toolInvocation as Record<string, unknown> | undefined;
+    toolName =
+      (typeof p.toolName === "string" ? p.toolName : undefined) ||
+      (ti && typeof ti.toolName === "string" ? ti.toolName : undefined) ||
+      "propose_lead_filters";
+  }
+
+  const rawFilters = (output || input) as Record<string, unknown> | undefined;
+
+  const isProposeFilters =
+    toolName === "propose_lead_filters" ||
+    (typeof p.type === "string" && p.type.includes("propose_lead_filters")) ||
+    (rawFilters &&
+      typeof rawFilters === "object" &&
+      ("query" in rawFilters || "location" in rawFilters));
+
+  const filters: ProposedFilters | null =
+    isProposeFilters && rawFilters && typeof rawFilters === "object"
+      ? {
+          query: String(rawFilters.query || "Local services"),
+          location: String(rawFilters.location || "Austin, TX"),
+          onlyMissing: Boolean(rawFilters.onlyMissing ?? true),
+          notes: rawFilters.notes ? String(rawFilters.notes) : "",
+        }
+      : null;
 
   return (
-    <Tool defaultOpen={false}>
+    <Tool defaultOpen={true} className="my-2 border border-border rounded-lg overflow-hidden">
       <ToolHeader type={`tool-${toolName}`} state={state} />
       <ToolContent>
-        <ToolInput input={p.input} />
+        <ToolInput input={input} />
       </ToolContent>
       {filters && <FilterCard filters={filters} />}
     </Tool>

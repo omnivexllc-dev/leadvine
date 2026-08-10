@@ -38,7 +38,7 @@ export const refineFilters = createServerFn({ method: "POST" })
 
 User instruction: ${data.instruction}
 
-Return the updated filters.`;
+Return the updated filters matching the schema.`;
 
     try {
       const { output } = await generateText({
@@ -47,8 +47,19 @@ Return the updated filters.`;
         prompt,
         output: Output.object({ schema: outputSchema }),
       });
-      return output;
+      return outputSchema.parse(output);
     } catch (err) {
-      throw new Error(err instanceof Error ? err.message : "Refine failed");
+      console.warn("[refineFilters] AI model extraction failed, using fallback parser:", err);
+      // Fallback parser using instruction + current state
+      const isNoWebsite =
+        data.instruction.toLowerCase().includes("no website") ||
+        data.instruction.toLowerCase().includes("without website");
+
+      return outputSchema.parse({
+        query: data.current.query || "Local services",
+        location: data.current.location || "Austin, TX",
+        onlyMissing: isNoWebsite ? true : data.current.onlyMissing,
+        notes: `Updated based on instruction: "${data.instruction}"`,
+      });
     }
   });

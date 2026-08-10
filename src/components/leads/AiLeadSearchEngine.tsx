@@ -88,7 +88,7 @@ export function AiLeadSearchEngine({
     setSavedCampaigns(getAiCampaigns());
   }, []);
 
-  const handleGeneratePlan = (promptText?: string) => {
+  const handleGeneratePlan = (promptText?: string, autoRun = true) => {
     const textToUse = promptText || prompt;
     if (!textToUse.trim()) return;
     setPrompt(textToUse);
@@ -97,8 +97,28 @@ export function AiLeadSearchEngine({
     setTimeout(() => {
       const plan = parseUserPromptToPlan(textToUse);
       setActivePlan(plan);
-      setPhase("preview");
-    }, 600);
+
+      if (autoRun) {
+        setPhase("executing");
+        setExecutionStep(0);
+
+        let step = 0;
+        const interval = setInterval(() => {
+          step += 1;
+          setExecutionStep(step);
+          if (step >= 5) {
+            clearInterval(interval);
+            const { newLeads, summary } = executeAiSearch(plan);
+            setDiscoveredLeads(newLeads);
+            setExecutionSummary(summary);
+            setSavedCampaigns(getAiCampaigns());
+            setPhase("results");
+          }
+        }, 400);
+      } else {
+        setPhase("preview");
+      }
+    }, 500);
   };
 
   const handleRefinePlan = (e: React.FormEvent) => {
