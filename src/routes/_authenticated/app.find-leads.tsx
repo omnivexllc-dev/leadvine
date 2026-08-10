@@ -140,8 +140,16 @@ function FindLeads() {
     });
   };
 
+  const [activeReport, setActiveReport] = useState<UnifiedLeadIntelligenceReport | null>(null);
+
   return (
     <div>
+      <LeadIntelligenceReportModal
+        report={activeReport}
+        isOpen={!!activeReport}
+        onClose={() => setActiveReport(null)}
+      />
+
       <div className="mb-8">
         <div className="text-xs uppercase tracking-widest text-vine mb-2">Tool</div>
         <h1 className="font-display text-4xl mb-2">Find leads</h1>
@@ -310,6 +318,7 @@ function FindLeads() {
                 lead={l}
                 checked={selected.has(l.place_id)}
                 onToggle={() => toggle(l.place_id)}
+                onOpenReport={(rep) => setActiveReport(rep)}
               />
             ))}
             {shown.length === 0 && (
@@ -334,14 +343,20 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+import { LeadIntelligenceReportModal } from "@/components/leads/LeadIntelligenceReportModal";
+import { generateIntelligenceReportForLead } from "@/services/leadIntelligence.service";
+import { UnifiedLeadIntelligenceReport } from "@/modules/types";
+
 function LeadRow({
   lead,
   checked,
   onToggle,
+  onOpenReport,
 }: {
   lead: PlacesLead;
   checked: boolean;
   onToggle: () => void;
+  onOpenReport: (report: UnifiedLeadIntelligenceReport) => void;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
@@ -354,9 +369,13 @@ function LeadRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <div className="font-medium truncate">{lead.name}</div>
-          {!lead.website && (
-            <span className="text-[10px] uppercase tracking-wider bg-vine/15 text-vine px-2 py-0.5 rounded-full">
+          {!lead.website ? (
+            <span className="text-[10px] uppercase tracking-wider bg-vine/15 text-vine px-2 py-0.5 rounded-full font-bold">
               No website
+            </span>
+          ) : (
+            <span className="text-[10px] uppercase tracking-wider bg-emerald-500/15 text-emerald-500 px-2 py-0.5 rounded-full font-bold">
+              Website Active
             </span>
           )}
         </div>
@@ -374,23 +393,43 @@ function LeadRow({
             </span>
           )}
           {lead.rating != null && (
-            <span className="flex items-center gap-1">
-              <Star className="h-3 w-3" />
+            <span className="flex items-center gap-1 text-amber-500 font-medium">
+              <Star className="h-3 w-3 fill-amber-500" />
               {lead.rating} ({lead.user_ratings_total ?? 0})
             </span>
           )}
         </div>
       </div>
-      {lead.maps_url && (
-        <a
-          href={lead.maps_url}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-vine hover:underline flex items-center gap-1"
+
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={() =>
+            onOpenReport(
+              generateIntelligenceReportForLead({
+                name: lead.name,
+                website: lead.website,
+                phone: lead.phone,
+                city: lead.address,
+              }),
+            )
+          }
+          className="bg-vine/10 hover:bg-vine/20 text-vine border border-vine/30 rounded-md py-1.5 px-3 text-xs font-semibold transition-all flex items-center gap-1.5"
         >
-          Maps <ExternalLink className="h-3 w-3" />
-        </a>
-      )}
+          <Sparkles className="h-3.5 w-3.5" /> Intelligence Report
+        </button>
+
+        {lead.maps_url && (
+          <a
+            href={lead.maps_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-muted-foreground hover:text-foreground p-1.5 rounded border border-border"
+            title="Open in Google Maps"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        )}
+      </div>
     </div>
   );
 }

@@ -106,6 +106,129 @@ export interface CompetitorBenchmark {
   techStack: string[];
 }
 
+export type PipelineStage =
+  | "discover"
+  | "verify"
+  | "enrich"
+  | "analyze"
+  | "score"
+  | "prioritize"
+  | "contact"
+  | "track"
+  | "convert";
+
+export interface PipelineStageInfo {
+  id: PipelineStage;
+  label: string;
+  description: string;
+  order: number;
+}
+
+export interface WebAuditScores {
+  mobileUx: number;
+  design: number;
+  performance: number;
+  seo: number;
+  accessibility: number;
+  trust: number;
+  conversion: number;
+  security: number;
+}
+
+export interface DecisionMakerInfo {
+  name: string;
+  title: string;
+  email: string;
+  emailVerified: boolean;
+  phone: string;
+  phoneVerified: boolean;
+  linkedinUrl?: string;
+  socialProfiles?: { platform: string; url: string }[];
+}
+
+export interface LeadVerificationStatus {
+  businessExists: boolean;
+  websiteReachable: boolean;
+  phoneValid: boolean;
+  emailValid: boolean;
+  isDuplicate: boolean;
+  currentlyOperating: boolean;
+}
+
+export interface AiSalesOpportunity {
+  leadScore: number; // 0 - 100
+  priorityLevel: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  whyContactReasoning: string;
+  whatToSellRecommendation: string;
+  recommendedService: string;
+  estimatedContractValueMin: number;
+  estimatedContractValueMax: number;
+  bestDecisionMakerTitle: string;
+  pitchAngle: string;
+}
+
+export interface OutreachSequence {
+  emailSubject: string;
+  emailBody: string;
+  smsText: string;
+  linkedInMessage: string;
+  coldCallScript: {
+    opening: string;
+    hook: string;
+    pitch: string;
+    objectionHandlers: { objection: string; response: string }[];
+  };
+  followUpSteps: {
+    day: number;
+    channel: "email" | "sms" | "linkedin";
+    subjectOrNote: string;
+    message: string;
+  }[];
+}
+
+export interface UnifiedLeadIntelligenceReport {
+  id: string;
+  businessName: string;
+  websiteUrl: string;
+  category: string;
+  city: string;
+  address?: string;
+  googleRating?: number;
+  reviewCount?: number;
+  leadSources: string[]; // e.g. ["Google Places", "Yelp", "Public Directory"]
+
+  pipelineStage: PipelineStage;
+  verification: LeadVerificationStatus;
+  decisionMaker: DecisionMakerInfo;
+
+  auditScores: WebAuditScores;
+  missingFeatures: string[];
+  redesignOpportunities: string[];
+
+  techStack: TechStackDetection;
+  seoSummary: {
+    domainAgeYears: number;
+    organicKeywordsEst: number;
+    monthlyTrafficEst: number;
+    backlinksEst: number;
+    rankingOpportunities: string[];
+  };
+  competitors: CompetitorBenchmark[];
+
+  problemsIdentified: {
+    title: string;
+    severity: "critical" | "warning" | "info";
+    description: string;
+  }[];
+  aiOpportunity: AiSalesOpportunity;
+  outreach: OutreachSequence;
+
+  notes?: string;
+  crmSynced?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PrioritizedLead {
   id: string;
   name: string;

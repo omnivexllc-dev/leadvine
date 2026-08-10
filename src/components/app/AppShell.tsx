@@ -44,6 +44,7 @@ const navGroups: NavGroup[] = [
     category: "Main",
     items: [
       { to: "/app", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/app/pipeline", label: "9-Stage Pipeline", icon: TrendingUp },
       { to: "/app/find-leads", label: "Find leads", icon: Search },
       { to: "/app/assistant", label: "AI assistant", icon: Sparkles },
     ],
