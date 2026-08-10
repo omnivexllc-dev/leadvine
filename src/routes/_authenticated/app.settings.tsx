@@ -43,7 +43,14 @@ function Settings() {
   const signOut = async () => {
     await qc.cancelQueries();
     qc.clear();
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("leadvine_user_session");
+    }
     router.navigate({ to: "/auth", replace: true });
   };
 
