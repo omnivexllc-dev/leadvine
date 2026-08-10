@@ -1,0 +1,58 @@
+import { PrioritizedLead } from "../types";
+
+export function getPrioritizedLeads(): PrioritizedLead[] {
+  return [
+    {
+      id: "p-1",
+      name: "Vanguard Law Group",
+      website: "vanguardlaw.co",
+      phone: "(555) 987-6543",
+      city: "Denver",
+      opportunityScore: 94,
+      starRating: 5,
+      rank: 1,
+      primaryReason: "Expired domain / Outdated 2017 legal layout + no mobile booking.",
+      estimatedContractValue: 7500,
+      actionStatus: "analyzed",
+    },
+    {
+      id: "p-2",
+      name: "Sunstate Dental",
+      website: "sunstatedental.com",
+      phone: "(555) 456-7890",
+      city: "Phoenix",
+      opportunityScore: 88,
+      starRating: 5,
+      rank: 2,
+      primaryReason: "Slow mobile load (28/100) + missing SSL cert badge.",
+      estimatedContractValue: 5000,
+      actionStatus: "uncontacted",
+    },
+    {
+      id: "p-3",
+      name: "Apex Plumbing",
+      website: "apexplumbingdemo.com",
+      phone: "(555) 234-5678",
+      city: "Austin",
+      opportunityScore: 82,
+      starRating: 4,
+      rank: 3,
+      primaryReason: "Outdated WordPress 5.2 + no mobile-sticky call button.",
+      estimatedContractValue: 4200,
+      actionStatus: "pitch_sent",
+    },
+    {
+      id: "p-4",
+      name: "Harbor Construction",
+      website: "harborbuilds.org",
+      phone: "(555) 888-9999",
+      city: "San Diego",
+      opportunityScore: 76,
+      starRating: 4,
+      rank: 4,
+      primaryReason: "Lacks portfolio gallery + non-responsive container grid.",
+      estimatedContractValue: 6800,
+      actionStatus: "meeting_booked",
+    },
+  ];
+}
