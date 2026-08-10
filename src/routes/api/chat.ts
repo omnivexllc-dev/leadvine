@@ -12,40 +12,52 @@ import { z } from "zod";
 import { getAiModel } from "@/lib/ai-gateway.server";
 import { parseUserPromptToPlan } from "@/services/aiLeadSearch.service";
 
-const SYSTEM_PROMPT = `You are LeadVine's prospecting assistant. Users describe the kind of business leads they want in plain English. Your job is to translate that into concrete search filters and hand them off with the propose_lead_filters tool.
+const SYSTEM_PROMPT = `You are LeadVine's prospecting assistant. Users describe the kind of business leads they want in plain English. Your job is to translate that into a structured AI Search Plan and pass it directly to LeadVine's orchestrator using the propose_lead_filters tool.
 
-LeadVine's Find Leads tool searches Google Maps (Places) for businesses. That means:
-- You CAN filter by: business category / niche (query) and location (city, region, state, or country), and whether the business has a website on file.
-- You CANNOT directly filter by: employee count, ad spend, tech stack (Shopify/WordPress), SEO quality, Core Web Vitals, chat widgets, or website age. Places API doesn't expose those.
+LeadVine's Lead Discovery Orchestrator executes search plans across Google Places and local business indexes:
+1. Extract the target business niche/industry (query) and specific location (city, state, region).
+2. Determine the websiteRequirement ('no_website', 'has_website', or 'any'). Set websiteRequirement to 'no_website' and set onlyMissing to true when the user asks for businesses without websites or needing new site builds.
+3. Identify the targetOpportunity (e.g., 'Website Redesign', 'Mobile UX & Speed Optimization', 'SEO Audit', 'New Mobile Website Build') and optional secondaryOpportunity.
+4. Provide concise notes explaining the strategy and assumptions.
 
-When the user asks for something Places can't do directly:
-1. Still call propose_lead_filters with the best-fit niche + location + onlyMissing.
-2. In "notes", explain briefly what part of their request can't be filtered by the source and suggest a next step (e.g. "Use SEO audit or Audit sites on the resulting list to score them").
+Always call propose_lead_filters once per user turn when the user specifies lead criteria. Keep text responses short (1-3 sentences).`;
 
-Always call propose_lead_filters once per user turn unless the user is just chatting/asking a question. Keep any chat text short (1-3 sentences). Do not paste raw JSON in your reply — the tool call is the structured output.`;
-
-const filterSchema = z.object({
+const searchPlanSchema = z.object({
   query: z
     .string()
     .describe(
-      "Business type / niche to search for on Google Maps (e.g. 'roofing companies', 'dentists', 'coffee shops').",
+      "Business category or niche to search for (e.g. 'roofing contractors', 'dentists', 'auto repair').",
     ),
   location: z
     .string()
     .describe(
-      "Location filter — city, state, region, or country (e.g. 'Austin, TX', 'California', 'New York City').",
+      "Target location — city, state, region, or country (e.g. 'Austin, TX', 'Miami, FL', 'California').",
+    ),
+  websiteRequirement: z
+    .enum(["no_website", "has_website", "any"])
+    .default("no_website")
+    .describe(
+      "Website criteria: 'no_website' for businesses lacking a website, 'has_website' for existing websites needing redesigns/SEO, or 'any'.",
     ),
   onlyMissing: z
     .boolean()
+    .default(true)
     .describe(
-      "If true, only show businesses that have no website on file. Default true when the user is doing outbound web-services prospecting.",
+      "Set to true when filtering strictly for businesses that do not have an official website on file.",
     ),
+  targetOpportunity: z
+    .string()
+    .describe(
+      "Primary sales pitch or service offering (e.g. 'Website Redesign', 'Mobile Lead Capture Engine', 'SEO & Speed Boost', 'New Website Build').",
+    ),
+  secondaryOpportunity: z
+    .string()
+    .optional()
+    .describe("Secondary sales pitch or complementary service."),
   notes: z
     .string()
     .optional()
-    .describe(
-      "1-3 sentence explanation of assumptions or of any part of the user's request that can't be applied directly.",
-    ),
+    .describe("1-3 sentence explanation of assumptions, target profile, or search plan reasoning."),
 });
 
 function makeSupabase(token: string) {
@@ -138,27 +150,34 @@ export const Route = createFileRoute("/api/chat")({
               tools: {
                 propose_lead_filters: tool({
                   description:
-                    "Propose the Find Leads filter set that best matches the user's request. Always call this when the user is describing leads they want, even if some criteria (employee count, ad spend, tech stack, SEO) can't be applied directly.",
-                  inputSchema: filterSchema,
+                    "Propose the AI Lead Search Plan that best matches the user's request, identifying business niche, location, website requirements, and primary/secondary sales opportunities.",
+                  inputSchema: searchPlanSchema,
                   execute: async (rawInput) => {
-                    const parsed = filterSchema.safeParse(rawInput);
+                    const parsed = searchPlanSchema.safeParse(rawInput);
                     if (!parsed.success) {
                       console.warn(
                         "[chat] Tool propose_lead_filters input validation warning:",
                         parsed.error.format(),
                       );
-                      // Return sanitized fallback matching schema
+                      const rawObj =
+                        typeof rawInput === "object" && rawInput
+                          ? (rawInput as Record<string, unknown>)
+                          : {};
+                      const isNoWeb =
+                        String(rawObj.websiteRequirement || "").toLowerCase() === "no_website" ||
+                        rawObj.onlyMissing === true;
                       return {
-                        query:
-                          typeof rawInput === "object" && rawInput && "query" in rawInput
-                            ? String((rawInput as Record<string, unknown>).query)
-                            : "Local services",
-                        location:
-                          typeof rawInput === "object" && rawInput && "location" in rawInput
-                            ? String((rawInput as Record<string, unknown>).location)
-                            : "Austin, TX",
-                        onlyMissing: true,
-                        notes: "Validated and sanitized filter set.",
+                        query: String(rawObj.query || "Local services"),
+                        location: String(rawObj.location || "Austin, TX"),
+                        websiteRequirement: isNoWeb ? "no_website" : "any",
+                        onlyMissing: isNoWeb,
+                        targetOpportunity: String(
+                          rawObj.targetOpportunity || "Website Redesign & Mobile Lead Engine",
+                        ),
+                        secondaryOpportunity: String(
+                          rawObj.secondaryOpportunity || "SEO & Local Citation Boost",
+                        ),
+                        notes: "Validated and sanitized AI Search Plan.",
                       };
                     }
                     return parsed.data;
@@ -177,11 +196,16 @@ export const Route = createFileRoute("/api/chat")({
 
         // Fallback response using prompt-to-plan engine
         const plan = parseUserPromptToPlan(lastUserText);
-        const filterArgs = {
+        const isNoWeb = plan.onlyMissing ?? true;
+        const searchPlanArgs = {
           query: plan.query || "Local services",
           location: plan.location || "Austin, TX",
-          onlyMissing: plan.onlyMissing ?? true,
-          notes: plan.reasoning || `Prepared search filters based on: "${lastUserText}"`,
+          websiteRequirement: isNoWeb ? "no_website" : "any",
+          onlyMissing: isNoWeb,
+          targetOpportunity: plan.primaryOpportunity || "Website Redesign & Mobile Lead Engine",
+          secondaryOpportunity:
+            plan.secondaryOpportunity || "SEO & Google Business Listing Optimization",
+          notes: plan.reasoning || `Prepared AI search plan based on: "${lastUserText}"`,
         };
 
         return createUIMessageStreamResponse({
@@ -189,16 +213,16 @@ export const Route = createFileRoute("/api/chat")({
           execute: async ({ writer }) => {
             writer.appendPart({
               type: "text",
-              text: `I've analyzed your search request ("${lastUserText}") and generated optimized lead filters:`,
+              text: `I've analyzed your search request ("${lastUserText}") and generated an optimized AI Lead Search Plan:`,
             });
             writer.appendPart({
               type: "tool-invocation",
               toolInvocation: {
                 toolCallId: `call-${Date.now()}`,
                 toolName: "propose_lead_filters",
-                args: filterArgs,
+                args: searchPlanArgs,
                 state: "result",
-                result: filterArgs,
+                result: searchPlanArgs,
               },
             });
           },
